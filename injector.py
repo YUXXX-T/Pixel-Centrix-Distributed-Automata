@@ -45,7 +45,7 @@ class GradientInjector:
         self._return_source : tuple[int,int] | None          = None
 
     # ------------------------------------------------------------------
-    # 工作站永久代价场
+    # 工作站静态场
     # ------------------------------------------------------------------
     def setup_station(self, tar_id: int, row: int, col: int) -> None:
         g = self.grid
