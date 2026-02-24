@@ -25,7 +25,20 @@ STATIONS = {
     4: (8, 9),
 }
 
-ROBOT_STARTS = [(9, 1), (9, 3), (9, 5), (9, 7), (9, 9)]
+# 5-robot/5-pod config (保留备用):
+# ROBOT_STARTS = [(9, 1), (9, 3), (9, 5), (9, 7), (9, 9)]
+# ORDERS = [
+#     (4, 2, 2),   # Pod@(4,2) → Station#2
+#     (4, 5, 1),   # Pod@(4,5) → Station#1
+#     (4, 8, 3),   # Pod@(4,8) → Station#3
+#     (3, 1, 4),   # Pod@(3,1) → Station#4
+#     (3, 7, 1),   # Pod@(3,7) → Station#1
+# ]
+
+ROBOT_STARTS = [
+    (9, 1), (9, 3), (9, 5), (9, 7), (9, 9),   # row 9
+    (8, 1), (8, 3), (8, 5), (8, 7), (7, 9),   # row 8 / 7
+]
 
 ORDERS = [
     (4, 2, 2),   # Pod@(4,2) → Station#2
@@ -33,14 +46,25 @@ ORDERS = [
     (4, 8, 3),   # Pod@(4,8) → Station#3
     (3, 1, 4),   # Pod@(3,1) → Station#4
     (3, 7, 1),   # Pod@(3,7) → Station#1
+    (5, 0, 3),   # Pod@(5,0) → Station#3
+    (5, 3, 2),   # Pod@(5,3) → Station#2
+    (5, 6, 4),   # Pod@(5,6) → Station#4
+    (5, 9, 1),   # Pod@(5,9) → Station#1
+    (6, 4, 2),   # Pod@(6,4) → Station#2
 ]
 
 VISUALIZE     = True
 MAX_TICKS     = 500
 TICK_INTERVAL = 0.12
 
-ROBOT_COLORS = ["#00ff88", "#ff6644", "#44aaff", "#ffcc00", "#cc44ff"]
-POD_COLORS   = ["#88ddff", "#ffcc44", "#cc88ff", "#88ff88", "#ff88cc"]
+ROBOT_COLORS = [
+    "#00ff88", "#ff6644", "#44aaff", "#ffcc00", "#cc44ff",
+    "#ff4488", "#44ffdd", "#ff8800", "#aaffaa", "#8888ff",
+]
+POD_COLORS = [
+    "#88ddff", "#ffcc44", "#cc88ff", "#88ff88", "#ff88cc",
+    "#ffaa44", "#44ccff", "#ff6688", "#aaff44", "#cc88ff",
+]
 
 
 def build_sim() -> Simulator:
@@ -210,8 +234,14 @@ def run_visual() -> None:
                 rmin = float(raw.min())
                 im.set_clim(min(rmin, 0), nat_cap)
                 im.set_data(np.flipud(raw))
+            elif dim == RETURN_DIM:
+                # 回程代价场：固定色阶，防止 rebuild 时短暂清空导致闪烁
+                RETURN_VIZ_CAP = (ROWS + COLS) * 10.0  # RETURN_DELTA_DECAY=10
+                im.set_clim(0, RETURN_VIZ_CAP)
+                raw_clipped = np.clip(raw, 0, RETURN_VIZ_CAP)
+                im.set_data(np.flipud(raw_clipped))
             else:
-                # 代价场：用实际 penalized max 作为 cap（过滤 INF）
+                # 其他代价场：动态 cap（过滤 INF）
                 fin = raw[raw < COST_INF * 0.5]
                 viz_cap = float(fin.max()) if fin.size > 0 else nat_cap
                 im.set_clim(0, max(viz_cap, 1.0))

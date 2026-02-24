@@ -140,7 +140,10 @@ class GradientInjector:
     # 每 tick 维持活跃场
     # ------------------------------------------------------------------
     def tick_diffuse(self, att_iters: int = 1, cost_iters: int = 1) -> None:
-        # Pod 吸引场
+        # Pod 吸引场：先把所有 source cell 钉回 MAX_GRAD，再扩散
+        # 多峰顺序 inject_order 会让先注入的峰在后续 diffuse 中衰减，每 tick 重钉修复
+        for (sr, sc) in self._pod_sources:
+            self.grid.inject(sr, sc, POD_DIM, MAX_GRAD)
         for (sr, sc) in self._pod_sources:
             self.grid.diffuse(POD_DIM, alpha=ALPHA, delta_decay=DELTA_DECAY,
                               iterations=att_iters,

@@ -27,6 +27,7 @@ class TaskType(Enum):
     DELIVER          = auto()
     WAIT_AT_STATION  = auto()
     RETURN_POD       = auto()
+    FINISH           = auto()   # 放回 pod 后，不再接收新任务
 
 
 class Robot:
