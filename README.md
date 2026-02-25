@@ -124,3 +124,10 @@ python main.py
 ![DEMO](./demo1.png)
 ![DEMO](./demo2.png)
 ![DEMO](./demo3.png)
+
+
+## DEMO with 84% Nodes
+![DEMO](./demo4.png)
+![DEMO](./demo5.png)
+![DEMO](./demo6.png)
+![DEMO](./demo7.png)
