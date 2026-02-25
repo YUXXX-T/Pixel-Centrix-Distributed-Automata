@@ -282,12 +282,9 @@ class Simulator:
                     for cell in self.grid.cells_at_distance(robot.row, robot.col, dist):
                         _inject(cell, penalty)
 
-        # 未被拾取的 Pod 位置对 DELIVER 机器人注入 ring-0 阻碍
-        # （代价场下降方向，高值 = 不走）
-        if exclude_robot.task_type == TaskType.DELIVER:
-            for (pr, pc) in self._pod_orders:
-                pod_cell = self.grid[pr, pc]
-                _inject(pod_cell, PENALTY_R0)
+        # 注：未被拾取的 Pod 位置已通过 Grad[1-4] 的 COST_INF 障碍自然编码
+        # （injector.tick_diffuse 每 tick 钉回 COST_INF + blocked_cells）
+        # 此处的临时惩罚已无需保留。
 
     def _remove_others_penalties(self) -> None:
         for (dim, r, c), orig in self._penalty_snapshot.items():

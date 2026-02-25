@@ -140,6 +140,8 @@ class GradientInjector:
     # 每 tick 维持活跃场
     # ------------------------------------------------------------------
     def tick_diffuse(self, att_iters: int = 1, cost_iters: int = 1) -> None:
+        from grid import COST_INF
+
         # Pod 吸引场：先把所有 source cell 钉回 MAX_GRAD，再扩散
         # 多峰顺序 inject_order 会让先注入的峰在后续 diffuse 中衰减，每 tick 重钉修复
         for (sr, sc) in self._pod_sources:
@@ -148,12 +150,20 @@ class GradientInjector:
             self.grid.diffuse(POD_DIM, alpha=ALPHA, delta_decay=DELTA_DECAY,
                               iterations=att_iters,
                               source=(sr, sc), source_value=MAX_GRAD)
-        # 工作站代价场
+
+        # 工作站代价场：Pod 格视为障碍，Grad[1-4] 自然绕行
+        pod_blocked: set[tuple[int, int]] = set(self._pod_sources.keys())
+        # 每 tick 重钉 Pod 格到 COST_INF（防止 diffuse min() 把它拉低）
+        for (pr, pc) in pod_blocked:
+            for dim in self._station_sources:
+                self.grid[pr, pc].grad[dim] = COST_INF
         for tar_id, (sr, sc) in self._station_sources.items():
             self.grid.diffuse_cost(tar_id, delta_decay=STATION_DELTA_DECAY,
                                    iterations=cost_iters,
-                                   source=(sr, sc), source_value=0.0)
-        # 返程代价场
+                                   source=(sr, sc), source_value=0.0,
+                                   blocked_cells=pod_blocked)
+
+        # 返程代价场（不受 Pod 影响，保持原逻辑）
         for (sr, sc) in self._return_sources:
             self.grid.diffuse_cost(RETURN_DIM, delta_decay=RETURN_DELTA_DECAY,
                                    iterations=cost_iters,

@@ -136,7 +136,8 @@ class Grid:
                      delta_decay: float = 10.0,
                      iterations: int = 1,
                      source: tuple[int, int] | None = None,
-                     source_value: float = 0.0) -> None:
+                     source_value: float = 0.0,
+                     blocked_cells: set[tuple[int, int]] | None = None) -> None:
         """
         代价场波前扩散（用于 dim=K 工作站导航）：
 
@@ -145,15 +146,23 @@ class Grid:
           source 钉在 source_value（= 0）；越远离工作站代价越高。
           机器人沿代价下降方向移动（走向 0），即走向工作站。
 
-        Note: 若某格被机器人临时注入了极高代价（防碰撞），
-              该格对邻居的影响会在下一 tick 自然消退。
+          blocked_cells: 视为不可通行的格子集合（如 Pod 位置），
+            - 这些格子自身保持 COST_INF，不参与扩散
+            - 邻居计算时跳过被 block 的格子，代价场自然绕行
         """
         for _ in range(iterations):
             new_vals = np.empty((self.rows, self.cols), dtype=float)
             for r in range(self.rows):
                 for c in range(self.cols):
+                    if blocked_cells and (r, c) in blocked_cells:
+                        new_vals[r, c] = COST_INF   # 保持不可通行
+                        continue
                     cell = self._cells[r][c]
                     nbrs = self.neighbors(r, c)
+                    # 排除被 block 的邻居，代价不从 Pod 格借道
+                    if blocked_cells:
+                        nbrs = [n for n in nbrs
+                                if (n.row, n.col) not in blocked_cells]
                     g_n_min = min((n.grad[dim] for n in nbrs), default=COST_INF)
                     new_vals[r, c] = min(cell.grad[dim], g_n_min + delta_decay)
             for r in range(self.rows):
