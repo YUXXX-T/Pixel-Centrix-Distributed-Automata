@@ -91,6 +91,9 @@ class Robot:
 
         candidates = [c for c in grid.neighbors(self.row, self.col)
                       if c.is_available]
+        # 非 FETCH_POD 机器人不得进入有 Pod 的格子（防止 Pod 穿越 Pod）
+        if self.task_type != TaskType.FETCH_POD:
+            candidates = [c for c in candidates if not c.pod_here]
 
         if not candidates:
             self._next_pos = None

@@ -105,10 +105,12 @@ class GradientInjector:
         自动将当前 occ=True 的格子视为障碍，使梯度场绕过已停放的 FINI 机器人。"""
         from grid import COST_INF
         g = self.grid
-        # 当前格子中 occ=True 的作为 blocked（不参与扩散，保持 COST_INF）
+        # 当前格子中 occ=True 或 pod_here=True 的作为 blocked（不参与扩散，保持 COST_INF）
+        # 但返程目标本身不能被 block（即使恰好是 pod 格也不行）
         occ_blocked: set[tuple[int, int]] = {
-            (c.row, c.col) for c in g.all_cells() if c.occ
-        }
+            (c.row, c.col) for c in g.all_cells()
+            if c.occ or c.pod_here
+        } - set(self._return_sources.keys())
         # 先清空
         g.clear_dim(RETURN_DIM)
         if not self._return_sources:
@@ -170,10 +172,11 @@ class GradientInjector:
                                    source=(sr, sc), source_value=0.0,
                                    blocked_cells=pod_blocked)
 
-        # 返程代价场：感知 occ 状态，使梯度绕过 FINI 机器人等永久障碍
+        # 返程代价场：感知 occ + pod_here 状态，使梯度绕过 FINI 机器人和有 Pod 的格子
         occ_blocked: set[tuple[int, int]] = {
-            (c.row, c.col) for c in self.grid.all_cells() if c.occ
-        }
+            (c.row, c.col) for c in self.grid.all_cells()
+            if c.occ or c.pod_here
+        } - set(self._return_sources.keys())
         # 每 tick 重钉 occ 格到 COST_INF（防止 min() 扩散把它们拉低）
         for (br, bc) in occ_blocked:
             self.grid[br, bc].grad[RETURN_DIM] = COST_INF

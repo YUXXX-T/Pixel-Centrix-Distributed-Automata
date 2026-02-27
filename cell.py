@@ -21,6 +21,7 @@ class Cell:
     col: int
     occ: bool = False
     res: int | None = None
+    pod_here: bool = False          # Pod 实体是否在此格（不随 occ 变化）
     grad: np.ndarray = field(
         default_factory=lambda: np.zeros(N_DIM, dtype=float)
     )

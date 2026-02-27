@@ -25,7 +25,7 @@ PENALTY_R1: float = 40.0     # 第 1 圈
 PENALTY_R2: float = 0     # 第 2 圈
 
 # Wake trail（空间热力尾迹）
-WAKE_INIT: float     = 100.0   # 机器人第一次到达 Cell 时的 wake 值
+WAKE_INIT: float     = 200.0   # 机器人第一次到达 Cell 时的 wake 值
 WAKE_N: int          = 2       # 机器人离开 Cell 后 N tick 衰减到 0
 WAKE_DELTA: float    = WAKE_INIT / WAKE_N   # 每 tick 衰减量
 W2: float            = 0.5     # wake 权重（penalty 权重 w1=1.0 隐含）
@@ -78,6 +78,7 @@ class Simulator:
         self._all_pod_positions.add(pos)
         self._occupied_pod_slots.add(pos)
         self._pod_current_pos[pos] = pos  # 初始位置 = 原始位置
+        self.grid[pos[0], pos[1]].pod_here = True   # 标记 Pod 实体在此格
 
     # ------------------------------------------------------------------
     def _inject_all_pods(self) -> None:
@@ -142,6 +143,9 @@ class Simulator:
         for robot in self.robots:
             robot.execute_move(self.grid)
 
+        # Phase 2.1: 全局 Pod 碰撞检测
+        self._detect_pod_collisions()
+
         # Phase 2.5a: 全局 cell.wake 衰减（仅用于可视化热力图）
         for cell in self.grid.all_cells():
             if cell.wake > 0.0 and not cell.occ:
@@ -191,6 +195,7 @@ class Simulator:
                     self.injector.clear_pod_peak(pos[0], pos[1])
                     self._pod_orders.pop(pos)
                     self._occupied_pod_slots.discard(pos)   # 格子空出，回程可用
+                    self.grid[pos[0], pos[1]].pod_here = False  # Pod 被拾起
                     # pod 随机器人移动，current_pos 保持 origin（viz 靠 carrying_pod 动态显示）
                     print(f"[Sim]  Robot#{robot.robot_id} lifted pod@{pos} "
                           f"→ station#{order.tar_id}  tick={self.tick_count}")
@@ -216,6 +221,7 @@ class Simulator:
                     robot.pod_origin   = None
                     robot.task_type    = TaskType.FINISH   # ← 不再接收新任务
                     self._occupied_pod_slots.add(pos)
+                    self.grid[pos[0], pos[1]].pod_here = True   # Pod 放回
                     if pod_orig is not None:
                         self._pod_current_pos[pod_orig] = pos
                     # Grad[5] 由下一 tick 的 _sync_return_field() 自动更新
@@ -230,6 +236,47 @@ class Simulator:
         print(f"  Tick {self.tick_count:>3} | {parts}")
 
         return bool(self._pod_orders) or bool(self._robot_orders) or any_active
+
+    # ------------------------------------------------------------------
+    # 全局 Pod 碰撞检测
+    # ------------------------------------------------------------------
+    def _detect_pod_collisions(self) -> None:
+        """
+        检测所有 Pod（静止 + 被搬运）是否有多个重叠在同一个 Cell 内。
+        如果发现碰撞，在终端输出醒目告警。仿真不停止。
+        """
+        from collections import defaultdict
+
+        # pos → list of pod descriptions
+        pod_at: dict[tuple[int, int], list[str]] = defaultdict(list)
+
+        # 1. 所有 pod_here=True 的格子（静止 Pod：未被拾起或已放回）
+        for cell in self.grid.all_cells():
+            if cell.pod_here:
+                pod_at[(cell.row, cell.col)].append(
+                    f"Pod(cell=({cell.row},{cell.col}), stationary)"
+                )
+
+        # 2. 被搬运的 Pod（跟随机器人位置）
+        for robot in self.robots:
+            if robot.carrying_pod and robot.pod_origin is not None:
+                pos = (robot.row, robot.col)
+                pod_at[pos].append(
+                    f"Pod(origin={robot.pod_origin}, carried by R{robot.robot_id})"
+                )
+
+        # 3. 碰撞检测
+        for pos, pods in pod_at.items():
+            if len(pods) > 1:
+                print()
+                print("!" * 70)
+                print(f"!!!  [COLLISION]  tick={self.tick_count}  "
+                      f"Cell=({pos[0]},{pos[1]})  "
+                      f"{len(pods)} Pods overlapping!  !!!")
+                for p in pods:
+                    print(f"!!!    → {p}")
+                print("!" * 70)
+                print()
 
     # ------------------------------------------------------------------
     # 防碰撞：方向感知惩罚
