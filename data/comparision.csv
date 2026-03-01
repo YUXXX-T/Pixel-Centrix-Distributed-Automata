@@ -1,10 +1,11 @@
-﻿one-shot(10x10),PCA-42,Prioritized Planning-42,Conflict Based Search-42
-Time/ticks,212,210,None
-,,,
-one-shot(10x10),PCA-20,Prioritized Planning-20,Conflict Based Search-20
-Time/ticks,100,118,None
-,,,
-one-shot(10x10),PCA-10,Prioritized Planning-10,Conflict Based Search-10
-Time/ticks,100,29,None
-,,,
-限时吞吐量,,,
+﻿one-shot(10x10),PCA-42,Prioritized Planning-42,Conflict Based Search-42,,,,PCA-42,
+Time/ticks,203,118,None,,,,N0 30 ,274
+,,,,,,,N0 50 ,195
+one-shot(10x10),PCA-20,Prioritized Planning-20,Conflict Based Search-20,,,,N0 60,187
+Time/ticks,122,52,None,,,,N0 80,181
+,,,,,,,N0 100,203
+one-shot(10x10),PCA-10,Prioritized Planning-10,Conflict Based Search-10,,,,N0 200,205
+Time/ticks,60,40,None,,,,,
+,,,,,,,,
+限时吞吐量,Deliveries-PCA,Throughput-PCA (deliveries/tick),Deliveries-PP,Throughput-PP (deliveries/tick),,,,
+500,133,0.2666,,,,,,
