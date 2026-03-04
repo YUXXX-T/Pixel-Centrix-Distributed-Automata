@@ -13,11 +13,15 @@ Grad 维度（与 cell.py 一致）：
 
 from __future__ import annotations
 from dataclasses import dataclass
+import numpy as np
 from grid import Grid
 from robot import Robot, TaskType, POD_DIM, RETURN_DIM
 from injector import GradientInjector
 
 WAIT_TICKS: int = 5
+
+# 终端输出开关：False 时只输出最终 RESULTS
+PRINT_SCREEN: bool = True
 
 # 防碰撞惩值
 PENALTY_R0: float = 100.0     # 导航机器人自己的 Cell（一次性，不按其他机器人数量叠加）
@@ -55,7 +59,8 @@ class Simulator:
         self._pod_orders: dict[tuple[int,int], Order] = {}  # (pr,pc) → Order
         self._robot_orders: dict[int, Order] = {}           # robot_id → Order
         self.tick_count: int                 = 0
-        self._penalty_snapshot: dict[tuple[int, int, int], float] = {}
+        self._penalty_dim: int = -1
+        self._penalty_saved: np.ndarray | None = None
         self._pods_injected: bool = False
         # 所有 Pod 原始格子（用于回程任意放置）
         self._all_pod_positions: set[tuple[int,int]] = set()
@@ -88,8 +93,9 @@ class Simulator:
         for (pr, pc), order in self._pod_orders.items():
             self.injector.inject_order(pr, pc)
             st = self._stations.get(order.tar_id)
-            print(f"[Sim]  Pod@({pr},{pc}) → station#{order.tar_id}"
-                  + (f"@({st.row},{st.col})" if st else ""))
+            if PRINT_SCREEN:
+                print(f"[Sim]  Pod@({pr},{pc}) → station#{order.tar_id}"
+                      + (f"@({st.row},{st.col})" if st else ""))
         self._pods_injected = True
 
     def _dispatch_orders(self) -> None:
@@ -146,10 +152,10 @@ class Simulator:
         # Phase 2.1: 全局 Pod 碰撞检测
         self._detect_pod_collisions()
 
-        # Phase 2.5a: 全局 cell.wake 衰减（仅用于可视化热力图）
-        for cell in self.grid.all_cells():
-            if cell.wake > 0.0 and not cell.occ:
-                cell.wake = max(0.0, cell.wake - WAKE_DELTA)
+        # Phase 2.5a: 全局 cell.wake 衰减（vectorized）
+        w = self.grid._wake
+        mask = (w > 0.0) & (~self.grid._occ)
+        w[mask] = np.maximum(0.0, w[mask] - WAKE_DELTA)
 
         # Phase 2.5b: 每个机器人的私有 wake trail 独立衰减
         for robot in self.robots:
@@ -174,7 +180,8 @@ class Simulator:
                 if robot.wait_ticks <= 0:
                     robot.task_type = TaskType.RETURN_POD
                     # Grad[5] 由下一 tick 的 _sync_return_field() 自动更新
-                    print(f"[Sim]  Robot#{robot.robot_id} → RETURN_POD  tick={self.tick_count}")
+                    if PRINT_SCREEN:
+                        print(f"[Sim]  Robot#{robot.robot_id} → RETURN_POD  tick={self.tick_count}")
                 continue
 
             if t == TaskType.IDLE or t == TaskType.FINISH:
@@ -197,8 +204,9 @@ class Simulator:
                     self._occupied_pod_slots.discard(pos)   # 格子空出，回程可用
                     self.grid[pos[0], pos[1]].pod_here = False  # Pod 被拾起
                     # pod 随机器人移动，current_pos 保持 origin（viz 靠 carrying_pod 动态显示）
-                    print(f"[Sim]  Robot#{robot.robot_id} lifted pod@{pos} "
-                          f"→ station#{order.tar_id}  tick={self.tick_count}")
+                    if PRINT_SCREEN:
+                        print(f"[Sim]  Robot#{robot.robot_id} lifted pod@{pos} "
+                              f"→ station#{order.tar_id}  tick={self.tick_count}")
 
             elif t == TaskType.DELIVER:
                 st = self._stations.get(robot.tar_id)
@@ -208,8 +216,9 @@ class Simulator:
                     order = self._robot_orders.get(robot.robot_id)
                     if order is not None:
                         order.fulfilled = True
-                    print(f"[Sim]  Robot#{robot.robot_id} delivered → wait {WAIT_TICKS}  "
-                          f"tick={self.tick_count}")
+                    if PRINT_SCREEN:
+                        print(f"[Sim]  Robot#{robot.robot_id} delivered → wait {WAIT_TICKS}  "
+                              f"tick={self.tick_count}")
 
             elif t == TaskType.RETURN_POD:
                 assert robot.pod_origin is not None
@@ -226,14 +235,16 @@ class Simulator:
                         self._pod_current_pos[pod_orig] = pos
                     # Grad[5] 由下一 tick 的 _sync_return_field() 自动更新
                     self._robot_orders.pop(robot.robot_id, None)
-                    print(f"[Sim]  Robot#{robot.robot_id} returned pod @{pos} → FINISH  "
-                          f"tick={self.tick_count}")
+                    if PRINT_SCREEN:
+                        print(f"[Sim]  Robot#{robot.robot_id} returned pod @{pos} → FINISH  "
+                              f"tick={self.tick_count}")
 
-        parts = " | ".join(
-            f"R{r.robot_id}@({r.row},{r.col}) {r.task_type.name[:4]}"
-            for r in self.robots
-        )
-        print(f"  Tick {self.tick_count:>3} | {parts}")
+        if PRINT_SCREEN:
+            parts = " | ".join(
+                f"R{r.robot_id}@({r.row},{r.col}) {r.task_type.name[:4]}"
+                for r in self.robots
+            )
+            print(f"  Tick {self.tick_count:>3} | {parts}")
 
         return bool(self._pod_orders) or bool(self._robot_orders) or any_active
 
@@ -250,12 +261,12 @@ class Simulator:
         # pos → list of pod descriptions
         pod_at: dict[tuple[int, int], list[str]] = defaultdict(list)
 
-        # 1. 所有 pod_here=True 的格子（静止 Pod：未被拾起或已放回）
-        for cell in self.grid.all_cells():
-            if cell.pod_here:
-                pod_at[(cell.row, cell.col)].append(
-                    f"Pod(cell=({cell.row},{cell.col}), stationary)"
-                )
+        # 1. 所有 pod_here=True 的格子（vectorized lookup）
+        rows, cols = np.where(self.grid._pod_here)
+        for r, c in zip(rows, cols):
+            pod_at[(int(r), int(c))].append(
+                f"Pod(cell=({r},{c}), stationary)"
+            )
 
         # 2. 被搬运的 Pod（跟随机器人位置）
         for robot in self.robots:
@@ -268,119 +279,111 @@ class Simulator:
         # 3. 碰撞检测
         for pos, pods in pod_at.items():
             if len(pods) > 1:
-                print()
-                print("!" * 70)
-                print(f"!!!  [COLLISION]  tick={self.tick_count}  "
-                      f"Cell=({pos[0]},{pos[1]})  "
-                      f"{len(pods)} Pods overlapping!  !!!")
-                for p in pods:
-                    print(f"!!!    → {p}")
-                print("!" * 70)
-                print()
+                if PRINT_SCREEN:
+                    print()
+                    print("!" * 70)
+                    print(f"!!!  [COLLISION]  tick={self.tick_count}  "
+                          f"Cell=({pos[0]},{pos[1]})  "
+                          f"{len(pods)} Pods overlapping!  !!!")
+                    for p in pods:
+                        print(f"!!!    → {p}")
+                    print("!" * 70)
+                    print()
 
     # ------------------------------------------------------------------
     # 防碰撞：方向感知惩罚
     def _apply_others_penalties(self, exclude_robot: Robot) -> None:
         """
         对 exclude_robot 的导航维度注入其他机器人的障碍。
-
-        规则：
-        1. 跳过 exclude_robot 自身（自己不给自己加惩罚）
-        2. 每个其他机器人 B（包括 IDLE）：
-           a. 跳过 B 自己所在 Cell（ring 0 不注入，靠 occ 即可）
-           b. 在 B 周围 ring 1、ring 2 注入惩罚
-           c. 在 exclude_robot 自己所在 Cell 也注入惩罚
-              （防止 R 在其他机器人 ring 外形成局部极值而卡住）
-
-        方向：
-          ascending(dim=0): 减值（凹坑）
-          descending(dim=1-5): 加值（凸峰）
+        Uses dim-level array snapshot for fast save/restore.
         """
         dim = exclude_robot.nav_dim
         if dim < 0:
             return
 
         ascending = exclude_robot.ascending
-        snap = self._penalty_snapshot
-        snap.clear()
+        # Snapshot entire dim slice (fast array copy, ~O(rows*cols))
+        self._penalty_dim = dim
+        self._penalty_saved = self.grid._grad[:, :, dim].copy()
 
-        def _inject(cell, penalty_val):
-            key = (dim, cell.row, cell.col)
-            if key not in snap:
-                snap[key] = cell.grad[dim]
-            if ascending:
-                cell.grad[dim] -= penalty_val
-            else:
-                cell.grad[dim] += penalty_val
+        g = self.grid._grad[:, :, dim]
 
-        nav_cell = self.grid[exclude_robot.row, exclude_robot.col]
-
-        # (c) 在导航机器人自己的 Cell 上注入一次惩罚（不随其他机器人数量累加）
-        _inject(nav_cell, PENALTY_R0)
+        # (c) 在导航机器人自己的 Cell 上注入一次惩罚
+        er, ec = exclude_robot.row, exclude_robot.col
+        if ascending:
+            g[er, ec] -= PENALTY_R0
+        else:
+            g[er, ec] += PENALTY_R0
 
         for robot in self.robots:
             if robot is exclude_robot:
                 continue
 
-            # (b) Ring 1 和 Ring 2 —— 仅活跃导航中的机器人才有扩展圈
-            #     IDLE/FINISH 机器人只有 ring 0（靠 occ 挡住自己格子即可）
+            # (b) Ring 1 和 Ring 2
             if robot.nav_dim >= 0:
                 for dist, penalty in [(1, PENALTY_R1), (2, PENALTY_R2)]:
+                    if penalty == 0:
+                        continue
                     for cell in self.grid.cells_at_distance(robot.row, robot.col, dist):
-                        _inject(cell, penalty)
-
-        # 注：未被拾取的 Pod 位置已通过 Grad[1-4] 的 COST_INF 障碍自然编码
-        # （injector.tick_diffuse 每 tick 钉回 COST_INF + blocked_cells）
-        # 此处的临时惩罚已无需保留。
+                        if ascending:
+                            g[cell.row, cell.col] -= penalty
+                        else:
+                            g[cell.row, cell.col] += penalty
 
     def _remove_others_penalties(self) -> None:
-        for (dim, r, c), orig in self._penalty_snapshot.items():
-            self.grid[r, c].grad[dim] = orig
-        self._penalty_snapshot.clear()
+        dim = getattr(self, '_penalty_dim', -1)
+        if dim < 0:
+            return
+        # Restore entire dim slice in one array copy
+        self.grid._grad[:, :, dim] = self._penalty_saved
+        self._penalty_dim = -1
 
     # ------------------------------------------------------------------
     # 可视化用：在所有活跃维度上注入全部机器人的惩罚
     # ------------------------------------------------------------------
     def apply_viz_penalties(self) -> None:
-        """临时注入所有机器人的惩罚效果到对应维度，用于热力图可视化。"""
-        snap = self._viz_snap = {}
-
-        # 收集所有活跃维度
+        """临时注入所有机器人的惩罚效果到对应维度，用于热力图可视化。
+        Uses dim-level array snapshots for fast save/restore."""
+        # Collect active dims
         active_dims: set[tuple[int, bool]] = set()
         for robot in self.robots:
             dim = robot.nav_dim
             if dim >= 0:
                 active_dims.add((dim, robot.ascending))
 
-        def _viz_inject(cell, d, asc, val):
-            key = (d, cell.row, cell.col)
-            if key not in snap:
-                snap[key] = cell.grad[d]
-            if asc:
-                cell.grad[d] -= val
-            else:
-                cell.grad[d] += val
+        # Save snapshots for all active dims
+        self._viz_saved = {d: self.grid._grad[:, :, d].copy()
+                           for d, _ in active_dims}
 
         for src in self.robots:
             for dim, ascending in active_dims:
+                g = self.grid._grad[:, :, dim]
                 # 每个其他机器人的 Cell 上注入惩罚
                 for other in self.robots:
                     if other is src:
                         continue
-                    _viz_inject(self.grid[other.row, other.col], dim, ascending, PENALTY_R0)
+                    if ascending:
+                        g[other.row, other.col] -= PENALTY_R0
+                    else:
+                        g[other.row, other.col] += PENALTY_R0
 
-                # Ring 1, Ring 2 —— 仅活跃导航中的 src 才有
+                # Ring 1, Ring 2
                 if src.nav_dim >= 0:
                     for dist, penalty in [(1, PENALTY_R1), (2, PENALTY_R2)]:
+                        if penalty == 0:
+                            continue
                         for cell in self.grid.cells_at_distance(src.row, src.col, dist):
-                            _viz_inject(cell, dim, ascending, penalty)
+                            if ascending:
+                                g[cell.row, cell.col] -= penalty
+                            else:
+                                g[cell.row, cell.col] += penalty
 
     def remove_viz_penalties(self) -> None:
         """还原 apply_viz_penalties 的效果。"""
-        snap = getattr(self, '_viz_snap', {})
-        for (dim, r, c), orig in snap.items():
-            self.grid[r, c].grad[dim] = orig
-        self._viz_snap = {}
+        saved = getattr(self, '_viz_saved', {})
+        for dim, arr in saved.items():
+            self.grid._grad[:, :, dim] = arr
+        self._viz_saved = {}
 
     # ------------------------------------------------------------------
     def run(self, max_ticks: int = 500, callback=None) -> None:

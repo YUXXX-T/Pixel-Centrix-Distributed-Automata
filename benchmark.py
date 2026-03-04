@@ -15,10 +15,15 @@ import sys
 import random
 import time
 from simulator import Simulator, Order, WAIT_TICKS, WAKE_INIT
+import simulator as _sim_module
 from robot import Robot, TaskType, POD_DIM, RETURN_DIM
 from grid import COST_INF
 from injector import MAX_GRAD
 
+# 终端输出开关：False 时只输出最终 RESULTS
+PRINT_SCREEN = True
+_sim_module.PRINT_SCREEN = PRINT_SCREEN   # 同步到 simulator 模块
+VISUALIZE    = False
 # ── Grid ──────────────────────────────────────────────────────────────
 ROWS, COLS = 10, 10
 
@@ -76,7 +81,7 @@ STATION_IDS = list(STATIONS.keys())
 # Re-injection cooldown (ticks after pod is dropped back)
 POD_COOLDOWN_TICKS = 2
 
-VISUALIZE     = True
+
 MAX_TICKS     = 500
 TICK_INTERVAL = 0.12
 
@@ -163,8 +168,9 @@ class BenchmarkSimulator(Simulator):
         for robot in self.robots:
             if robot.task_type == TaskType.FINISH:
                 robot.task_type = TaskType.IDLE
-                print(f"[Bench] Robot#{robot.robot_id} FINISH → IDLE  "
-                      f"tick={self.tick_count}")
+                if PRINT_SCREEN:
+                    print(f"[Bench] Robot#{robot.robot_id} FINISH → IDLE  "
+                          f"tick={self.tick_count}")
 
         # # ── Log Cell(8,8) state ────────────────────────────────────────
         # self._log_cell(8, 8)
@@ -206,10 +212,11 @@ class BenchmarkSimulator(Simulator):
                     self._pod_cooldown[pos] = POD_COOLDOWN_TICKS
                     self._inject_drop_barriers(pos)
                     self.total_deliveries += 1
-                    print(f"[Bench] Pod @{pos} cooldown started "
-                          f"({POD_COOLDOWN_TICKS} ticks)  "
-                          f"total_deliveries={self.total_deliveries}  "
-                          f"tick={self.tick_count}")
+                    if PRINT_SCREEN:
+                        print(f"[Bench] Pod @{pos} cooldown started "
+                              f"({POD_COOLDOWN_TICKS} ticks)  "
+                              f"total_deliveries={self.total_deliveries}  "
+                              f"tick={self.tick_count}")
 
     def _inject_drop_barriers(self, pos: tuple[int, int]) -> None:
         """Inject COST_INF into Grad[1-5] at the dropped pod's cell."""
@@ -277,8 +284,9 @@ class BenchmarkSimulator(Simulator):
         # Re-inject Grad[0] peak
         self.injector.inject_order(pr, pc)
 
-        print(f"[Bench] Pod re-injected @{pos} → station#{tar_id}  "
-              f"tick={self.tick_count}")
+        if PRINT_SCREEN:
+            print(f"[Bench] Pod re-injected @{pos} → station#{tar_id}  "
+                  f"tick={self.tick_count}")
 
 
 # ======================================================================

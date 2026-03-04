@@ -7,5 +7,6 @@ Time/ticks,122,52,None,,,,N0 80,181
 one-shot(10x10),PCA-10,Prioritized Planning-10,Conflict Based Search-10,,,,N0 200,205
 Time/ticks,60,40,None,,,,,
 ,,,,,,,,
-限时吞吐量,Deliveries-PCA,Throughput-PCA (deliveries/tick),Deliveries-PP,Throughput-PP (deliveries/tick),,,,
-500,133,0.2666,263,0.526,,,,
+限时吞吐量,Deliveries-PCA,Throughput-PCA (deliveries/tick),calculation_time(CPU)-PCA,Deliveries-PP,Throughput-PP (deliveries/tick),calculation_time(CPU)-PP,,
+500,142,0.284,2.94,263,0.526,8.5,,
+Average,48.29931973,,,30.94117647,,,,
