@@ -104,12 +104,15 @@ def _pod_duration_constraint(
 def _static_pod_constraints(
     agents: list[Agent],
     exclude_aid: int,
+    all_tasks: list | None = None,
 ) -> list[Constraint]:
     """
     为所有尚未规划的 agent 的 pod 生成静态驻留约束。
 
     未规划的 pod 始终停在 pod_pos，直到被取走。
     将 pod_pos 在所有时刻标记为约束，防止携带 pod 的 agent 撞到。
+
+    如果传入 all_tasks，还会为不属于任何 agent 的 pod 生成约束。
     """
     constraints: list[Constraint] = []
     for a in agents:
@@ -127,6 +130,20 @@ def _static_pod_constraints(
                 pos=pod_pos,
                 timestep=t,
             ))
+
+    # 为不属于任何 agent 的 pod 生成约束
+    if all_tasks is not None:
+        assigned_tids = {a.task.task_id for a in agents if a.task is not None}
+        for task in all_tasks:
+            if task.task_id in assigned_tids:
+                continue
+            for t in range(_GLOBAL_MAX_T):
+                constraints.append(Constraint(
+                    agent_id=exclude_aid,
+                    pos=task.pod_pos,
+                    timestep=t,
+                ))
+
     return constraints
 
 
@@ -136,6 +153,7 @@ def prioritized_plan(
     cols: int,
     obstacles: set[Pos],
     priority_order: list[int] | None = None,
+    all_tasks: list | None = None,
 ) -> dict[int, list[Pos]] | None:
     """
     按优先级顺序逐一规划路径。
@@ -196,7 +214,7 @@ def prioritized_plan(
         my_pod_constraints = [
             Constraint(agent_id=aid, pos=c.pos, timestep=c.timestep)
             for c in all_pod_constraints
-        ] + _static_pod_constraints(agents, exclude_aid=aid)
+        ] + _static_pod_constraints(agents, exclude_aid=aid, all_tasks=all_tasks)
 
         result = plan_full_path(
             start=a.start,

@@ -107,6 +107,15 @@ _POD_TASKS_42: list[tuple[Pos, int]] = [
 
 
 # ===========================================================================
+# CONFIG_BENCH — 42 pods / 30 robots (throughput benchmark)
+#   Same pod layout as CONFIG_42; robots = first 30 from the 42-robot layout.
+# ===========================================================================
+_STATIONS_BENCH: dict[int, Pos] = _STATIONS_42
+_ROBOT_STARTS_BENCH: list[Pos]  = _ROBOT_STARTS_42[:30]
+_POD_TASKS_BENCH: list[tuple[Pos, int]] = _POD_TASKS_42
+
+
+# ===========================================================================
 # 激活配置（模块级变量，供 main.py from world import ... 使用）
 # ===========================================================================
 STATIONS:     dict[int, Pos]      = _STATIONS_42
@@ -122,7 +131,9 @@ def _reinit() -> None:
     """
     global STATIONS, ROBOT_STARTS, POD_TASKS
     cfg = ACTIVE_CONFIG
-    if cfg == "42":
+    if cfg == "bench":
+        STATIONS, ROBOT_STARTS, POD_TASKS = _STATIONS_BENCH, _ROBOT_STARTS_BENCH, _POD_TASKS_BENCH
+    elif cfg == "42":
         STATIONS, ROBOT_STARTS, POD_TASKS = _STATIONS_42, _ROBOT_STARTS_42, _POD_TASKS_42
     elif cfg == "20":
         STATIONS, ROBOT_STARTS, POD_TASKS = _STATIONS_20, _ROBOT_STARTS_20, _POD_TASKS_20

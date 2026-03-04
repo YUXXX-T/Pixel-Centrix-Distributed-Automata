@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 #   SCENARIO = 20  →  20 robots / 20 pods（参考 ../main.py N_AGENTS=20）
 #   SCENARIO = 42  →  42 robots / 42 pods（参考 ../main.py N_AGENTS=42）
 # ===========================================================================
-SCENARIO: int = 10
+SCENARIO: int = 42
 
 import world as _world
 _world.ACTIVE_CONFIG = str(SCENARIO)
@@ -62,7 +62,7 @@ POD_COLORS = [
 
 # 规划器选项（四段路径含WAIT+RETURN，CBS搜索空间较大，默认用PP；
 #  如需CBS可改为 True，但可能需要更多节点预算）
-USE_CBS_FIRST  = True
+USE_CBS_FIRST  = False
 CBS_MAX_NODES  = 200000
 MAX_TICKS      = 500
 TICK_INTERVAL  = 0.12   # 与 ../main.py 一致，每 tick 一帧（无插值）

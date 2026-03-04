@@ -8,4 +8,4 @@ one-shot(10x10),PCA-10,Prioritized Planning-10,Conflict Based Search-10,,,,N0 20
 Time/ticks,60,40,None,,,,,
 ,,,,,,,,
 限时吞吐量,Deliveries-PCA,Throughput-PCA (deliveries/tick),Deliveries-PP,Throughput-PP (deliveries/tick),,,,
-500,133,0.2666,,,,,,
+500,133,0.2666,263,0.526,,,,
