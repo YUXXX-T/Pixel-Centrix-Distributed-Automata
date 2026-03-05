@@ -1,0 +1,120 @@
+{
+    "map_size": 20,
+    "num_robots": 120,
+    "stations": [
+        {
+            "tar_id": 1,
+            "row": 0,
+            "col": 0
+        },
+        {
+            "tar_id": 2,
+            "row": 0,
+            "col": 9
+        },
+        {
+            "tar_id": 3,
+            "row": 0,
+            "col": 19
+        },
+        {
+            "tar_id": 4,
+            "row": 19,
+            "col": 0
+        },
+        {
+            "tar_id": 5,
+            "row": 19,
+            "col": 9
+        },
+        {
+            "tar_id": 6,
+            "row": 19,
+            "col": 19
+        },
+        {
+            "tar_id": 7,
+            "row": 9,
+            "col": 0
+        },
+        {
+            "tar_id": 8,
+            "row": 9,
+            "col": 19
+        }
+    ],
+    "pod_blocks": [
+        {
+            "origin_row": 2,
+            "origin_col": 2,
+            "num_rows": 7,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 10,
+            "origin_col": 2,
+            "num_rows": 8,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 2,
+            "origin_col": 5,
+            "num_rows": 7,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 10,
+            "origin_col": 5,
+            "num_rows": 8,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 2,
+            "origin_col": 8,
+            "num_rows": 7,
+            "num_cols": 1
+        },
+        {
+            "origin_row": 10,
+            "origin_col": 8,
+            "num_rows": 8,
+            "num_cols": 1
+        },
+        {
+            "origin_row": 2,
+            "origin_col": 10,
+            "num_rows": 7,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 10,
+            "origin_col": 10,
+            "num_rows": 8,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 2,
+            "origin_col": 13,
+            "num_rows": 7,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 10,
+            "origin_col": 13,
+            "num_rows": 8,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 2,
+            "origin_col": 16,
+            "num_rows": 7,
+            "num_cols": 2
+        },
+        {
+            "origin_row": 10,
+            "origin_col": 16,
+            "num_rows": 8,
+            "num_cols": 2
+        }
+    ]
+}

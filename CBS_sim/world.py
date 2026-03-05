@@ -8,6 +8,8 @@ world.py — 仿真世界定义
 """
 
 from __future__ import annotations
+import json
+import os
 from cbs_types import Pos, Task, Agent
 
 ROWS = 10
@@ -139,6 +141,78 @@ def _reinit() -> None:
         STATIONS, ROBOT_STARTS, POD_TASKS = _STATIONS_20, _ROBOT_STARTS_20, _POD_TASKS_20
     else:  # "10"
         STATIONS, ROBOT_STARTS, POD_TASKS = _STATIONS_10, _ROBOT_STARTS_10, _POD_TASKS_10
+
+
+# ===========================================================================
+# JSON config loader — 从 JSON 文件加载地图配置
+# ===========================================================================
+def load_from_json(path: str) -> None:
+    """
+    从 JSON 配置文件加载地图配置，覆盖模块级变量。
+    支持两种 pod 格式：
+      - "pod_tasks": 显式列表 [{row, col, station_id}, ...]
+      - "pod_blocks": 块定义 [{origin_row, origin_col, num_rows, num_cols}, ...]
+                      自动用 round-robin 分配 station_id
+    机器人位置：
+      - "robot_starts": 显式列表 [[row, col], ...]
+      - 若缺省，自动在空闲格子上放置 num_robots 台机器人
+    """
+    global ROWS, COLS, STATIONS, ROBOT_STARTS, POD_TASKS, OBSTACLES
+
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    size = cfg["map_size"]
+    ROWS = COLS = size
+
+    # ── Stations ──────────────────────────────────────────────────────
+    STATIONS = {s["tar_id"]: (s["row"], s["col"]) for s in cfg["stations"]}
+
+    # ── Pods ──────────────────────────────────────────────────────────
+    station_ids = list(STATIONS.keys())
+
+    if "pod_tasks" in cfg:
+        # 显式 pod 列表（10×10 用）
+        POD_TASKS = [
+            ((p["row"], p["col"]), p["station_id"])
+            for p in cfg["pod_tasks"]
+        ]
+    elif "pod_blocks" in cfg:
+        # 块展开（20×20 用），round-robin 分配 station
+        POD_TASKS = []
+        idx = 0
+        for blk in cfg["pod_blocks"]:
+            or_, oc = blk["origin_row"], blk["origin_col"]
+            for dr in range(blk["num_rows"]):
+                for dc in range(blk["num_cols"]):
+                    tar = station_ids[idx % len(station_ids)]
+                    POD_TASKS.append(((or_ + dr, oc + dc), tar))
+                    idx += 1
+    else:
+        POD_TASKS = []
+
+    # ── Robots ────────────────────────────────────────────────────────
+    if "robot_starts" in cfg:
+        ROBOT_STARTS = [(r, c) for r, c in cfg["robot_starts"]]
+    else:
+        # 自动放置：跳过 pod 和 station 占用的格子
+        num_robots = cfg.get("num_robots", 60)
+        occupied: set[tuple[int, int]] = set()
+        for (pr, pc), _ in POD_TASKS:
+            occupied.add((pr, pc))
+        for sr, sc in STATIONS.values():
+            occupied.add((sr, sc))
+        ROBOT_STARTS = []
+        for r in range(ROWS):
+            for c in range(COLS):
+                if (r, c) not in occupied:
+                    ROBOT_STARTS.append((r, c))
+                if len(ROBOT_STARTS) >= num_robots:
+                    break
+            if len(ROBOT_STARTS) >= num_robots:
+                break
+
+    OBSTACLES = set()
 
 
 # ===========================================================================

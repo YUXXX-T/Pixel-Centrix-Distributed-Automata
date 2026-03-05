@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 #   SCENARIO = 20  →  20 robots / 20 pods（参考 ../main.py N_AGENTS=20）
 #   SCENARIO = 42  →  42 robots / 42 pods（参考 ../main.py N_AGENTS=42）
 # ===========================================================================
-SCENARIO: int = 42
+SCENARIO: int = 20
 
 import world as _world
 _world.ACTIVE_CONFIG = str(SCENARIO)

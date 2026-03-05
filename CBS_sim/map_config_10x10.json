@@ -1,0 +1,360 @@
+{
+    "map_size": 10,
+    "num_robots": 30,
+    "stations": [
+        {
+            "tar_id": 1,
+            "row": 1,
+            "col": 9
+        },
+        {
+            "tar_id": 2,
+            "row": 1,
+            "col": 0
+        },
+        {
+            "tar_id": 3,
+            "row": 8,
+            "col": 0
+        },
+        {
+            "tar_id": 4,
+            "row": 8,
+            "col": 9
+        }
+    ],
+    "robot_starts": [
+        [
+            0,
+            0
+        ],
+        [
+            0,
+            1
+        ],
+        [
+            0,
+            2
+        ],
+        [
+            0,
+            3
+        ],
+        [
+            0,
+            4
+        ],
+        [
+            0,
+            5
+        ],
+        [
+            0,
+            6
+        ],
+        [
+            0,
+            7
+        ],
+        [
+            0,
+            8
+        ],
+        [
+            0,
+            9
+        ],
+        [
+            5,
+            0
+        ],
+        [
+            5,
+            1
+        ],
+        [
+            5,
+            2
+        ],
+        [
+            5,
+            3
+        ],
+        [
+            5,
+            4
+        ],
+        [
+            5,
+            5
+        ],
+        [
+            5,
+            6
+        ],
+        [
+            5,
+            7
+        ],
+        [
+            5,
+            8
+        ],
+        [
+            5,
+            9
+        ],
+        [
+            9,
+            0
+        ],
+        [
+            9,
+            1
+        ],
+        [
+            9,
+            2
+        ],
+        [
+            9,
+            3
+        ],
+        [
+            9,
+            4
+        ],
+        [
+            9,
+            5
+        ],
+        [
+            9,
+            6
+        ],
+        [
+            9,
+            7
+        ],
+        [
+            9,
+            8
+        ],
+        [
+            9,
+            9
+        ]
+    ],
+    "pod_tasks": [
+        {
+            "row": 1,
+            "col": 1,
+            "station_id": 1
+        },
+        {
+            "row": 1,
+            "col": 2,
+            "station_id": 2
+        },
+        {
+            "row": 2,
+            "col": 1,
+            "station_id": 3
+        },
+        {
+            "row": 2,
+            "col": 2,
+            "station_id": 4
+        },
+        {
+            "row": 3,
+            "col": 1,
+            "station_id": 1
+        },
+        {
+            "row": 3,
+            "col": 2,
+            "station_id": 2
+        },
+        {
+            "row": 4,
+            "col": 1,
+            "station_id": 3
+        },
+        {
+            "row": 4,
+            "col": 2,
+            "station_id": 4
+        },
+        {
+            "row": 6,
+            "col": 1,
+            "station_id": 1
+        },
+        {
+            "row": 6,
+            "col": 2,
+            "station_id": 2
+        },
+        {
+            "row": 7,
+            "col": 1,
+            "station_id": 3
+        },
+        {
+            "row": 7,
+            "col": 2,
+            "station_id": 4
+        },
+        {
+            "row": 8,
+            "col": 1,
+            "station_id": 1
+        },
+        {
+            "row": 8,
+            "col": 2,
+            "station_id": 2
+        },
+        {
+            "row": 1,
+            "col": 4,
+            "station_id": 3
+        },
+        {
+            "row": 1,
+            "col": 5,
+            "station_id": 4
+        },
+        {
+            "row": 2,
+            "col": 4,
+            "station_id": 1
+        },
+        {
+            "row": 2,
+            "col": 5,
+            "station_id": 2
+        },
+        {
+            "row": 3,
+            "col": 4,
+            "station_id": 3
+        },
+        {
+            "row": 3,
+            "col": 5,
+            "station_id": 4
+        },
+        {
+            "row": 4,
+            "col": 4,
+            "station_id": 1
+        },
+        {
+            "row": 4,
+            "col": 5,
+            "station_id": 2
+        },
+        {
+            "row": 6,
+            "col": 4,
+            "station_id": 3
+        },
+        {
+            "row": 6,
+            "col": 5,
+            "station_id": 4
+        },
+        {
+            "row": 7,
+            "col": 4,
+            "station_id": 1
+        },
+        {
+            "row": 7,
+            "col": 5,
+            "station_id": 2
+        },
+        {
+            "row": 8,
+            "col": 4,
+            "station_id": 3
+        },
+        {
+            "row": 8,
+            "col": 5,
+            "station_id": 4
+        },
+        {
+            "row": 1,
+            "col": 7,
+            "station_id": 1
+        },
+        {
+            "row": 1,
+            "col": 8,
+            "station_id": 2
+        },
+        {
+            "row": 2,
+            "col": 7,
+            "station_id": 3
+        },
+        {
+            "row": 2,
+            "col": 8,
+            "station_id": 4
+        },
+        {
+            "row": 3,
+            "col": 7,
+            "station_id": 1
+        },
+        {
+            "row": 3,
+            "col": 8,
+            "station_id": 2
+        },
+        {
+            "row": 4,
+            "col": 7,
+            "station_id": 3
+        },
+        {
+            "row": 4,
+            "col": 8,
+            "station_id": 4
+        },
+        {
+            "row": 6,
+            "col": 7,
+            "station_id": 1
+        },
+        {
+            "row": 6,
+            "col": 8,
+            "station_id": 2
+        },
+        {
+            "row": 7,
+            "col": 7,
+            "station_id": 3
+        },
+        {
+            "row": 7,
+            "col": 8,
+            "station_id": 4
+        },
+        {
+            "row": 8,
+            "col": 7,
+            "station_id": 1
+        },
+        {
+            "row": 8,
+            "col": 8,
+            "station_id": 2
+        }
+    ]
+}

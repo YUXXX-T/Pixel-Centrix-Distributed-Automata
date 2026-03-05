@@ -1,7 +1,10 @@
 """
 bench_finite.py — Finite-Tick Throughput Benchmark for CBS_sim
 
-Configuration: 42 pods / 30 robots / 4 stations on a 10×10 grid.
+Dual map support:
+  MAP_SIZE = 10  → 42 pods / 30 robots / 4 stations on 10×10
+  MAP_SIZE = 20  → ~150 pods / 60 robots / 8 stations on 20×20
+
 Robots cycle continuously: FETCH→DELIVER→WAIT→RETURN→(re-assign next pod).
 Pods become available again after a cooldown once returned.
 
@@ -14,13 +17,17 @@ import sys
 import os
 import time
 import random
+import colorsys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-# ── Activate bench config (42 pods / 30 robots) ──────────────────────────
+# ── MAP_SIZE switch: 10 → 10×10 ;  20 → 20×20 ───────────────────────────
+MAP_SIZE = 10
+
 import world as _world
-_world.ACTIVE_CONFIG = "bench"
-_world._reinit()
+_json_path = os.path.join(os.path.dirname(__file__),
+                          f"map_config_{MAP_SIZE}x{MAP_SIZE}.json")
+_world.load_from_json(_json_path)
 
 from world import (
     ROWS, COLS, STATIONS, OBSTACLES,
@@ -41,23 +48,20 @@ STATION_IDS = list(STATIONS.keys())
 VISUALIZE     = False
 TICK_INTERVAL = 0.12
 
-ROBOT_COLORS = [
-    "#00ff88", "#ff6644", "#44aaff", "#ffcc00", "#cc44ff",
-    "#ff4488", "#44ffdd", "#ff8800", "#aaffaa", "#8888ff",
-    "#ff3333", "#33ff99", "#3399ff", "#ffff33", "#ff33cc",
-    "#33ffff", "#cc9933", "#9933cc", "#33cc66", "#6633ff",
-]
-POD_COLORS = [
-    "#88ddff", "#ffcc44", "#cc88ff", "#88ff88", "#ff88cc",
-    "#ffaa44", "#44ccff", "#ff6688", "#aaff44", "#cc88ff",
-    "#44ffaa", "#ff4444", "#4488ff", "#ddff44", "#ff44aa",
-    "#44dddd", "#ddaa44", "#aa44dd", "#44dd88", "#8844ff",
-    "#ff8888", "#88ffcc", "#8888dd", "#ddcc88", "#cc44aa",
-    "#44aaaa", "#aacc44", "#dd44ff", "#44ff44", "#ff44ff",
-    "#aaddff", "#ffaa88", "#88aacc", "#ccffaa", "#ff88aa",
-    "#88ccaa", "#ccaa88", "#aa88cc", "#88ccff", "#ffcc88",
-    "#ccff88", "#88ffaa",
-]
+
+# ── Colour generation (auto-sized to match robot / pod count) ─────────────
+def _generate_colors(n: int, saturation: float = 0.75,
+                     value: float = 0.95) -> list[str]:
+    """Generate *n* visually distinct hex colours via HSV cycling."""
+    colors = []
+    for i in range(n):
+        h = i / n
+        r, g, b = colorsys.hsv_to_rgb(h, saturation, value)
+        colors.append(f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}")
+    return colors
+
+ROBOT_COLORS = _generate_colors(max(len(ROBOT_STARTS), 20), 0.80, 0.95)
+POD_COLORS   = _generate_colors(max(len(POD_TASKS), 42), 0.70, 0.92)
 
 
 # ── Helper: single-agent re-plan with existing paths as constraints ──────
@@ -238,6 +242,7 @@ def run_benchmark(n_ticks: int) -> None:
 
     # ── Initial assignment: assign first batch ────────────────────────
     print("\n[Step 1] Initial Task Assignment (Hungarian)...")
+    t_plan_start = time.perf_counter()
     assign_tasks(agents, all_tasks[:n_robots])
     # Remove assigned tasks from available pool
     assigned_task_ids = {a.task.task_id for a in agents if a.task is not None}
@@ -249,18 +254,22 @@ def run_benchmark(n_ticks: int) -> None:
         agents=agents, rows=ROWS, cols=COLS, obstacles=OBSTACLES,
         all_tasks=all_tasks,
     )
+    initial_plan_time = time.perf_counter() - t_plan_start
     if solution is None:
         print("\n[ERROR] Initial planning failed!")
         return
 
     total_cost = sum(len(a.path) for a in agents if a.path)
     makespan = max((len(a.path) for a in agents if a.path), default=1) - 1
-    print(f"\n  Initial plan: SIC={total_cost}  Makespan={makespan}")
+    print(f"\n  Initial plan: SIC={total_cost}  Makespan={makespan}"
+          f"  ({initial_plan_time:.2f}s)")
 
     # ── Tick loop ─────────────────────────────────────────────────────
     print(f"\n[Step 3] Running {n_ticks} ticks...")
     total_deliveries = 0
     total_collisions = 0
+    replan_count = 0
+    replan_total_time = 0.0
     t0 = time.perf_counter()
 
     for tick in range(1, n_ticks + 1):
@@ -321,18 +330,23 @@ def run_benchmark(n_ticks: int) -> None:
                     agent.return_end_t = 0
 
                     # Re-plan for this single agent
+                    t_rp = time.perf_counter()
                     success = _replan_single(
                         agent, agents, all_tasks, ROWS, COLS, OBSTACLES, tick
                     )
+                    rp_elapsed = time.perf_counter() - t_rp
+                    replan_count += 1
+                    replan_total_time += rp_elapsed
                     if success:
                         print(f"  [tick {tick:>4}] Robot#{agent.agent_id} "
                               f"re-assigned → pod#{new_task.task_id}"
                               f"@{new_task.pod_pos} → "
-                              f"station#{new_task.station_id}")
+                              f"station#{new_task.station_id}"
+                              f"  (replan {rp_elapsed:.3f}s)")
                     else:
                         print(f"  [tick {tick:>4}] Robot#{agent.agent_id} "
                               f"re-plan FAILED for pod#{new_task.task_id}, "
-                              f"going idle")
+                              f"going idle  (replan {rp_elapsed:.3f}s)")
                         available_tasks.append(new_task)
                         agent.task = None
                         agent.path = [curr_pos] * (n_ticks + 10)
@@ -347,8 +361,10 @@ def run_benchmark(n_ticks: int) -> None:
         total_collisions += len(_detect_collisions(
             tick, agents, all_tasks, cooldown_tasks))
 
-    elapsed = time.perf_counter() - t0
+    sim_time = time.perf_counter() - t0
+    total_time = initial_plan_time + sim_time
     throughput = total_deliveries / n_ticks if n_ticks > 0 else 0.0
+    replan_avg = (replan_total_time / replan_count) if replan_count > 0 else 0.0
 
     # ── Results ───────────────────────────────────────────────────────
     print()
@@ -358,20 +374,25 @@ def run_benchmark(n_ticks: int) -> None:
     print(f"    Deliveries   : {total_deliveries}")
     print(f"    Collisions   : {total_collisions}")
     print(f"    Throughput   : {throughput:.4f} deliveries/tick")
-    print(f"    Wall-clock   : {elapsed:.2f}s")
-    print(f"    Sim speed    : {n_ticks / elapsed:.1f} ticks/s")
+    print(f"    Plan time    : {initial_plan_time:.2f}s  (initial)")
+    print(f"    Replan time  : {replan_total_time:.2f}s  "
+          f"({replan_count} calls, avg {replan_avg:.3f}s)")
+    print(f"    Sim time     : {sim_time:.2f}s  (tick loop incl. replans)")
+    print(f"    Total time   : {total_time:.2f}s")
+    print(f"    Sim speed    : {n_ticks / sim_time:.1f} ticks/s")
     print("=" * 70)
 
 
 # ── Shared simulation setup ──────────────────────────────────────────────
 def _build_sim():
     """Build agents, tasks, do initial assignment + planning. Returns
-    (agents, all_tasks, available_tasks) or None on failure."""
+    (agents, all_tasks, available_tasks, initial_plan_time) or None on failure."""
     n_robots = len(ROBOT_STARTS)
     agents, all_tasks = build_agents_and_tasks()
     available_tasks = list(all_tasks)
 
     print("\n[Step 1] Initial Task Assignment (Hungarian)...")
+    t_plan_start = time.perf_counter()
     assign_tasks(agents, all_tasks[:n_robots])
     assigned_ids = {a.task.task_id for a in agents if a.task}
     available_tasks = [t for t in all_tasks if t.task_id not in assigned_ids]
@@ -379,17 +400,22 @@ def _build_sim():
     print("\n[Step 2] Initial Path Planning (Prioritized Planning)...")
     solution = prioritized_plan(agents=agents, rows=ROWS, cols=COLS,
                                 obstacles=OBSTACLES, all_tasks=all_tasks)
+    initial_plan_time = time.perf_counter() - t_plan_start
     if solution is None:
         print("\n[ERROR] Initial planning failed!")
         return None
     sic = sum(len(a.path) for a in agents if a.path)
     ms = max((len(a.path) for a in agents if a.path), default=1) - 1
-    print(f"\n  Initial plan: SIC={sic}  Makespan={ms}")
-    return agents, all_tasks, available_tasks
+    print(f"\n  Initial plan: SIC={sic}  Makespan={ms}"
+          f"  ({initial_plan_time:.2f}s)")
+    return agents, all_tasks, available_tasks, initial_plan_time
 
 
-def _sim_tick(tick, agents, all_tasks, available_tasks, cooldown_tasks, n_ticks):
-    """Run one tick of simulation. Returns number of new deliveries this tick."""
+def _sim_tick(tick, agents, all_tasks, available_tasks, cooldown_tasks,
+              n_ticks, replan_stats=None):
+    """Run one tick of simulation. Returns number of new deliveries this tick.
+    replan_stats: optional mutable dict to accumulate replan timing.
+    """
     new_deliveries = 0
 
     # ── Process cooldowns ─────────────────────────────────────────
@@ -438,14 +464,21 @@ def _sim_tick(tick, agents, all_tasks, available_tasks, cooldown_tasks, n_ticks)
             agent.fetch_end_t = agent.deliver_end_t = 0
             agent.wait_end_t = agent.return_end_t = 0
 
+            t_rp = time.perf_counter()
             success = _replan_single(agent, agents, all_tasks, ROWS, COLS, OBSTACLES, tick)
+            rp_elapsed = time.perf_counter() - t_rp
+            if replan_stats is not None:
+                replan_stats["count"] += 1
+                replan_stats["total_time"] += rp_elapsed
             if success:
                 print(f"  [tick {tick:>4}] Robot#{agent.agent_id} "
                       f"re-assigned → pod#{new_task.task_id}"
-                      f"@{new_task.pod_pos} → station#{new_task.station_id}")
+                      f"@{new_task.pod_pos} → station#{new_task.station_id}"
+                      f"  (replan {rp_elapsed:.3f}s)")
             else:
                 print(f"  [tick {tick:>4}] Robot#{agent.agent_id} "
-                      f"re-plan FAILED, going idle")
+                      f"re-plan FAILED, going idle"
+                      f"  (replan {rp_elapsed:.3f}s)")
                 available_tasks.append(new_task)
                 agent.task = None
                 agent.path = [curr_pos] * (n_ticks + 10)
@@ -564,8 +597,9 @@ def run_visual_benchmark(n_ticks: int) -> None:
     result = _build_sim()
     if result is None:
         return
-    agents, all_tasks, available_tasks = result
+    agents, all_tasks, available_tasks, initial_plan_time = result
     all_tasks_map = {t.task_id: t for t in all_tasks}
+    replan_stats = {"count": 0, "total_time": 0.0}
     cooldown_tasks: dict[int, int] = {}
 
     def gy(r: int) -> int:
@@ -719,7 +753,7 @@ def run_visual_benchmark(n_ticks: int) -> None:
         # ── Simulation step (skip tick 0) ─────────────────────────
         if tick > 0:
             nd = _sim_tick(tick, agents, all_tasks, available_tasks,
-                           cooldown_tasks, n_ticks)
+                           cooldown_tasks, n_ticks, replan_stats)
             total_deliveries += nd
         # ── Global collision detection ────────────────────────────
         total_collisions += len(_detect_collisions(
@@ -808,12 +842,15 @@ def run_visual_benchmark(n_ticks: int) -> None:
         else:
             time.sleep(TICK_INTERVAL)
 
-    elapsed = time.perf_counter() - t0
+    sim_time = time.perf_counter() - t0
+    total_time = initial_plan_time + sim_time
     throughput = total_deliveries / n_ticks if n_ticks > 0 else 0.0
+    replan_avg = (replan_stats["total_time"] / replan_stats["count"]
+                  if replan_stats["count"] > 0 else 0.0)
 
     status_txt.set_text(
         f"✓ Done {n_ticks} ticks  |  Deliveries: {total_deliveries}  |  "
-        f"Throughput: {throughput:.4f}/tick  |  {elapsed:.1f}s")
+        f"Throughput: {throughput:.4f}/tick  |  {total_time:.1f}s")
     fig.canvas.draw()
     fig.canvas.flush_events()
 
@@ -824,7 +861,11 @@ def run_visual_benchmark(n_ticks: int) -> None:
     print(f"    Deliveries   : {total_deliveries}")
     print(f"    Collisions   : {total_collisions}")
     print(f"    Throughput   : {throughput:.4f} deliveries/tick")
-    print(f"    Wall-clock   : {elapsed:.2f}s")
+    print(f"    Plan time    : {initial_plan_time:.2f}s  (initial)")
+    print(f"    Replan time  : {replan_stats['total_time']:.2f}s  "
+          f"({replan_stats['count']} calls, avg {replan_avg:.3f}s)")
+    print(f"    Sim time     : {sim_time:.2f}s  (tick loop incl. replans)")
+    print(f"    Total time   : {total_time:.2f}s")
     print("=" * 70)
 
     plt.ioff()
