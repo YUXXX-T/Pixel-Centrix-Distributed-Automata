@@ -3,3 +3,4 @@ __pycache__/
 comparision.csv
 *.pdf
 data/10x10_process/*.png
+data/visualize_imgs.py

@@ -120,7 +120,7 @@ MAX_TICKS        = 500
 TICK_INTERVAL    = 0.12
 SHOW_LEGEND      = False
 SAVE_PROCESS_PNG = False          # 每个 tick 保存 Grad[0] & Grad[5] 为 PNG
-SAVE_PDF_TICK    = 7          # 指定 tick 号保存为 PDF（如 SAVE_PDF_TICK = 10）
+SAVE_PDF_TICK    = None          # 指定 tick 号保存为 PDF（如 SAVE_PDF_TICK = 10）
 PROCESS_DIR      = os.path.join(os.path.dirname(__file__), "data", "10x10_process")
 
 ROBOT_COLORS = [
