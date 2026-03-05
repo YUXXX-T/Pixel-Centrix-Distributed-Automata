@@ -1,0 +1,5 @@
+# 忽略 Python 运行产生的缓存文件夹
+__pycache__/
+comparision.csv
+*.pdf
+data/10x10_process/*.png

@@ -13,7 +13,7 @@ main.py — Warehouse Simulation
   N_AGENTS = 42  →  42 robots / 42 pods（大规模）
 """
 
-import sys, time
+import sys, time, os
 from simulator import Simulator, Order, PENALTY_R0, WAKE_INIT
 from robot import Robot, POD_DIM, RETURN_DIM
 
@@ -25,7 +25,7 @@ ROWS, COLS = 10, 10
 #   N_AGENTS = 20  →  20 robots / 20 pods（小规模测试）
 #   N_AGENTS = 42  →  42 robots / 42 pods（大规模测试）
 # ===========================================================================
-N_AGENTS = 42
+N_AGENTS = 10
 
 # 工作站（两套配置共用）
 STATIONS = {
@@ -115,9 +115,13 @@ else:  # N_AGENTS == 20（默认）
         (6,6,1),(6,7,2),(7,6,3),(7,7,4),
     ]
 
-VISUALIZE     = True
-MAX_TICKS     = 500
-TICK_INTERVAL = 0.12
+VISUALIZE        = True
+MAX_TICKS        = 500
+TICK_INTERVAL    = 0.12
+SHOW_LEGEND      = False
+SAVE_PROCESS_PNG = False          # 每个 tick 保存 Grad[0] & Grad[5] 为 PNG
+SAVE_PDF_TICK    = 7          # 指定 tick 号保存为 PDF（如 SAVE_PDF_TICK = 10）
+PROCESS_DIR      = os.path.join(os.path.dirname(__file__), "data", "10x10_process")
 
 ROBOT_COLORS = [
     "#00ff88", "#ff6644", "#44aaff", "#ffcc00", "#cc44ff",
@@ -196,8 +200,10 @@ def run_visual() -> None:
             ax.axhline(y, color="#334466", lw=0.5, zorder=1)
         ax.set_xticks(range(COLS))
         ax.set_xticklabels(range(COLS), color="#aaaacc", fontsize=6)
+        ax.xaxis.tick_top()
+        ax.xaxis.set_label_position("top")
         ax.set_yticks(range(ROWS))
-        ax.set_yticklabels(range(ROWS), color="#aaaacc", fontsize=6)
+        ax.set_yticklabels(range(ROWS-1, -1, -1), color="#aaaacc", fontsize=6)
 
     im_list = []
     for idx, (ax, (dim, title, cmap, is_cost)) in enumerate(zip(axes, PANELS)):
@@ -244,19 +250,21 @@ def run_visual() -> None:
                                color="#ff9900", alpha=0.5, zorder=3, label="Occ")
     res_scat = axes[1].scatter([], [], s=200, marker="s",
                                color="#cc44ff", alpha=0.4, zorder=3, label="Res")
-    axes[1].legend(loc="upper left", fontsize=6, facecolor="#1a1a3a",
-                   edgecolor="#334466", labelcolor="white")
+    if SHOW_LEGEND:
+        axes[1].legend(loc="upper left", fontsize=6, facecolor="#1a1a3a",
+                       edgecolor="#334466", labelcolor="white")
 
     # Pod 标记（左面板，跟随机器人）
     pod_dots = []
     for idx, (pr, pc, _) in enumerate(ORDERS):
-        lbl = f"P{idx}" if N_AGENTS <= 20 else ("Pods" if idx == 0 else None)
+        lbl = (f"P{idx}" if N_AGENTS <= 20 else ("Pods" if idx == 0 else None)) if SHOW_LEGEND else None
         d, = axes[0].plot(pc, gy(pr), "^", markersize=11, zorder=9,
                           color=POD_COLORS[idx % len(POD_COLORS)], markeredgecolor="white",
                           markeredgewidth=0.8, label=lbl)
         pod_dots.append((d, pr, pc))
-    axes[0].legend(loc="upper left", fontsize=6, facecolor="#1a1a3a",
-                   edgecolor="#334466", labelcolor="white", ncol=2)
+    if SHOW_LEGEND:
+        axes[0].legend(loc="upper left", fontsize=6, facecolor="#1a1a3a",
+                       edgecolor="#334466", labelcolor="white", ncol=2)
 
     # Robot 标记（所有面板）
     robot_dots = []
@@ -264,7 +272,7 @@ def run_visual() -> None:
         dots = []
         for rid in range(len(ROBOT_STARTS)):
             color = ROBOT_COLORS[rid % len(ROBOT_COLORS)]
-            if ax is axes[0]:
+            if ax is axes[0] and SHOW_LEGEND:
                 lbl = f"R{rid}" if N_AGENTS <= 20 else ("Robots" if rid == 0 else None)
             else:
                 lbl = None
@@ -277,7 +285,7 @@ def run_visual() -> None:
     status_txt = fig.text(0.5, 0.01, "Initializing…",
                           ha="center", fontsize=9, color="white",
                           fontfamily="monospace")
-    plt.tight_layout(rect=[0, 0.04, 1, 0.96])
+    plt.tight_layout(rect=[0, 0.04, 0.89, 0.96])
     plt.ion()
     plt.show()
 
@@ -355,12 +363,212 @@ def run_visual() -> None:
         fig.canvas.draw()
         fig.canvas.flush_events()
 
+    # ---- 科研风格快照保存函数（1×2 组合图） ----
+    def save_panel_snapshot(tick: int) -> None:
+        """将 Grad[0] 和 Grad[5] 渲染到同一张 1×2 科研风格图中并保存。"""
+        save_png = SAVE_PROCESS_PNG
+        save_pdf = (SAVE_PDF_TICK is not None and tick == SAVE_PDF_TICK)
+        if not save_png and not save_pdf:
+            return
+
+        os.makedirs(PROCESS_DIR, exist_ok=True)
+
+        # 科研风格 rcParams（局部覆盖，不影响主 GUI）
+        sci_rc = {
+            'font.family': 'sans-serif',
+            'font.sans-serif': ['Arial'],
+            'font.size': 12,
+            'axes.labelsize': 14,
+            'axes.titlesize': 14,
+            'xtick.labelsize': 12,
+            'ytick.labelsize': 12,
+            'figure.autolayout': False,
+        }
+
+        panels_to_save = [
+            (POD_DIM,    f"Emergent Demand Field in Tick {tick}",    "YlOrRd",  False),
+            (RETURN_DIM, f"Dynamic Return Field in Tick {tick}",  "Blues_r",  True),
+        ]
+
+        with plt.rc_context(sci_rc):
+            sfig, saxes = plt.subplots(1, 2, figsize=(13, 5.5))
+            sfig.patch.set_facecolor("white")
+
+            for sax, (dim, title, cmap, is_cost) in zip(saxes, panels_to_save):
+                # 学术风格坐标轴
+                sax.set_facecolor("white")
+                sax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+                sax.set_xlim(-0.5, COLS - 0.5)
+                sax.set_ylim(-0.5, ROWS - 0.5)
+                sax.set_aspect("equal")
+                sax.set_xlabel("Column", fontsize=12)
+                sax.set_ylabel("Row", fontsize=12)
+                sax.set_xticks(range(COLS))
+                sax.set_xticklabels(range(COLS))
+                sax.xaxis.tick_top()
+                sax.xaxis.set_label_position("top")
+                sax.set_yticks(range(ROWS))
+                sax.set_yticklabels(range(ROWS-1, -1, -1))
+                # 网格线
+                for x in np.arange(-0.5, COLS, 1):
+                    sax.axvline(x, color="#cccccc", lw=0.5, ls="--", zorder=1)
+                for y in np.arange(-0.5, ROWS, 1):
+                    sax.axhline(y, color="#cccccc", lw=0.5, ls="--", zorder=1)
+                for spine in sax.spines.values():
+                    spine.set_edgecolor("black")
+                    spine.set_linewidth(0.8)
+
+                # 场数据
+                raw = sim.grid.grad_matrix(dim)
+                if not is_cost:
+                    rmin = float(raw.min())
+                    mat = np.flipud(raw)
+                    vmin, vmax = min(rmin, 0), MAX_GRAD
+                elif dim == RETURN_DIM:
+                    RETURN_VIZ_CAP = (ROWS + COLS) * 10.0
+                    mat = np.flipud(np.clip(raw, 0, RETURN_VIZ_CAP))
+                    vmin, vmax = 0, RETURN_VIZ_CAP
+                else:
+                    fin = raw[raw < COST_INF * 0.5]
+                    cap = float(fin.max()) if fin.size > 0 else 1.0
+                    mat = np.flipud(np.clip(raw, 0, cap))
+                    vmin, vmax = 0, cap
+
+                im = sax.imshow(mat, vmin=vmin, vmax=vmax, cmap=cmap,
+                                origin="lower",
+                                extent=[-0.5, COLS-0.5, -0.5, ROWS-0.5],
+                                aspect="equal", alpha=0.85, zorder=2)
+                sfig.colorbar(im, ax=sax, fraction=0.04, pad=0.03, shrink=0.85)
+
+                # 工作站标记
+                for tid, (sr, sc) in STATIONS.items():
+                    sax.plot(sc, gy(sr), "r*", markersize=14, zorder=6,
+                             markeredgecolor="black", markeredgewidth=0.5)
+                    sax.text(sc, gy(sr)+0.38, f"S{tid}", color="black",
+                             fontsize=9, fontweight="bold",
+                             ha="center", va="bottom", zorder=7)
+
+                # Robot 位置
+                for rid, r in enumerate(sim.robots):
+                    color = ROBOT_COLORS[rid % len(ROBOT_COLORS)]
+                    sax.plot(r.col, gy(r.row), "o", markersize=11, zorder=8,
+                             color=color, markeredgecolor="black", markeredgewidth=0.8)
+
+                # Pod 位置（仅 Grad[0]）
+                if dim == POD_DIM:
+                    for pidx, (pr, pc, _) in enumerate(ORDERS):
+                        carrier = None
+                        for r in sim.robots:
+                            if r.carrying_pod and r.pod_origin == (pr, pc):
+                                carrier = r
+                                break
+                        if carrier is not None:
+                            px, py = carrier.col, gy(carrier.row)
+                        else:
+                            cur = sim._pod_current_pos.get((pr, pc), (pr, pc))
+                            px, py = cur[1], gy(cur[0])
+                        sax.plot(px, py, "^", markersize=10, zorder=9,
+                                 color=POD_COLORS[pidx % len(POD_COLORS)],
+                                 markeredgecolor="black", markeredgewidth=0.6)
+            # legend
+            # sfig.suptitle(f"Gradient Field Snapshot — Tick {tick}",
+            #               fontsize=15, fontweight="bold", y=0.02)
+            sfig.tight_layout(rect=[0, 0.05, 1, 1])
+
+            fname = f"tick{tick:03d}_gradient_snapshot"
+            if save_png:
+                sfig.savefig(os.path.join(PROCESS_DIR, fname + ".png"),
+                             dpi=300, bbox_inches="tight", facecolor="white")
+            if save_pdf:
+                sfig.savefig(os.path.join(PROCESS_DIR, fname + ".pdf"),
+                             bbox_inches="tight", facecolor="white")
+                # 单独保存每个面板为独立 PDF（完整重绘，含 colorbar）
+                for dim, title, cmap, is_cost in panels_to_save:
+                    pname = title.split(") ")[1].replace(" ", "_") if ") " in title else title.replace(" ", "_")
+                    pfig, pax = plt.subplots(1, 1, figsize=(6.5, 5.5))
+                    pfig.patch.set_facecolor("white")
+                    pax.set_facecolor("white")
+                    pax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+                    pax.set_xlim(-0.5, COLS - 0.5)
+                    pax.set_ylim(-0.5, ROWS - 0.5)
+                    pax.set_aspect("equal")
+                    pax.set_xlabel("Column", fontsize=12)
+                    pax.set_ylabel("Row", fontsize=12)
+                    pax.set_xticks(range(COLS))
+                    pax.set_xticklabels(range(COLS))
+                    pax.xaxis.tick_top()
+                    pax.xaxis.set_label_position("top")
+                    pax.set_yticks(range(ROWS))
+                    pax.set_yticklabels(range(ROWS-1, -1, -1))
+                    for xv in np.arange(-0.5, COLS, 1):
+                        pax.axvline(xv, color="#cccccc", lw=0.5, ls="--", zorder=1)
+                    for yv in np.arange(-0.5, ROWS, 1):
+                        pax.axhline(yv, color="#cccccc", lw=0.5, ls="--", zorder=1)
+                    for spine in pax.spines.values():
+                        spine.set_edgecolor("black")
+                        spine.set_linewidth(0.8)
+
+                    raw = sim.grid.grad_matrix(dim)
+                    if not is_cost:
+                        rmin = float(raw.min())
+                        mat = np.flipud(raw)
+                        vmin, vmax = min(rmin, 0), MAX_GRAD
+                    elif dim == RETURN_DIM:
+                        RETURN_VIZ_CAP = (ROWS + COLS) * 10.0
+                        mat = np.flipud(np.clip(raw, 0, RETURN_VIZ_CAP))
+                        vmin, vmax = 0, RETURN_VIZ_CAP
+                    else:
+                        fin = raw[raw < COST_INF * 0.5]
+                        cap = float(fin.max()) if fin.size > 0 else 1.0
+                        mat = np.flipud(np.clip(raw, 0, cap))
+                        vmin, vmax = 0, cap
+
+                    pim = pax.imshow(mat, vmin=vmin, vmax=vmax, cmap=cmap,
+                                     origin="lower",
+                                     extent=[-0.5, COLS-0.5, -0.5, ROWS-0.5],
+                                     aspect="equal", alpha=0.85, zorder=2)
+                    pfig.colorbar(pim, ax=pax, fraction=0.04, pad=0.03, shrink=0.85)
+
+                    for tid, (sr, sc) in STATIONS.items():
+                        pax.plot(sc, gy(sr), "r*", markersize=14, zorder=6,
+                                 markeredgecolor="black", markeredgewidth=0.5)
+                        pax.text(sc, gy(sr)+0.38, f"S{tid}", color="black",
+                                 fontsize=9, fontweight="bold",
+                                 ha="center", va="bottom", zorder=7)
+                    for rid, r in enumerate(sim.robots):
+                        color = ROBOT_COLORS[rid % len(ROBOT_COLORS)]
+                        pax.plot(r.col, gy(r.row), "o", markersize=11, zorder=8,
+                                 color=color, markeredgecolor="black", markeredgewidth=0.8)
+                    if dim == POD_DIM:
+                        for pidx, (pr, pc, _) in enumerate(ORDERS):
+                            carrier = None
+                            for r in sim.robots:
+                                if r.carrying_pod and r.pod_origin == (pr, pc):
+                                    carrier = r
+                                    break
+                            if carrier is not None:
+                                px, py = carrier.col, gy(carrier.row)
+                            else:
+                                cur = sim._pod_current_pos.get((pr, pc), (pr, pc))
+                                px, py = cur[1], gy(cur[0])
+                            pax.plot(px, py, "^", markersize=10, zorder=9,
+                                     color=POD_COLORS[pidx % len(POD_COLORS)],
+                                     markeredgecolor="black", markeredgewidth=0.6)
+
+                    pfig.tight_layout()
+                    pfig.savefig(os.path.join(PROCESS_DIR, f"tick{tick:03d}_{pname}.pdf"),
+                                 bbox_inches="tight", facecolor="white")
+                    plt.close(pfig)
+            plt.close(sfig)
+
     update_frame()
+    save_panel_snapshot(0)
     time.sleep(0.5)
 
     for _ in range(MAX_TICKS):
         still_running = sim.tick()
         update_frame()
+        save_panel_snapshot(sim.tick_count)
         time.sleep(TICK_INTERVAL)
         if not still_running:
             status_txt.set_text(f"✓ All done in {sim.tick_count} ticks!")
