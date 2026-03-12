@@ -179,15 +179,13 @@ python benchmark.py 500
 
 
 
-## Citation
+```
 
-If you find this simulation environment or the PCDA architecture helpful for your research, please consider citing our IEEE CASE 2026 paper:
+## License
 
-```bibtex
-@inproceedings{Pixel-Centrix-Distributed-Automata,
-  title={Your Paper Title Here},
-  author={Tian, Yuxuan and Zhaokai, Liu and Lin Wang},
-  booktitle={2026 IEEE 22nd International Conference on Automation Science and Engineering (CASE)},
-  year={2026},
-  organization={IEEE}
-}
+This project is licensed under the Apache License 2.0.
+
+You are free to use, modify, and distribute this code for academic and commercial purposes. However, you must include the original copyright notice, state any significant changes made to the files, and include a copy of the license. This license also provides an express grant of patent rights from contributors. For more details, please refer to the LICENSE file in this repository.
+
+
+```
