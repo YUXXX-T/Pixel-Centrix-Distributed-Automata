@@ -179,13 +179,17 @@ python benchmark.py 500
 
 
 
-```
+---
 
-## License
+## 📄 License
 
-This project is licensed under the Apache License 2.0.
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-You are free to use, modify, and distribute this code for academic and commercial purposes. However, you must include the original copyright notice, state any significant changes made to the files, and include a copy of the license. This license also provides an express grant of patent rights from contributors. For more details, please refer to the LICENSE file in this repository.
+This project is licensed under the **Apache License 2.0**.
 
+You are free to use, modify, and distribute this code for academic and commercial purposes.
+However, you must include the original copyright notice, state any significant changes made
+to the files, and include a copy of the license. This license also provides an express grant
+of patent rights from contributors.
 
-```
+For more details, please refer to the [LICENSE](./LICENSE.txt) file in this repository.
