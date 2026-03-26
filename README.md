@@ -1,4 +1,4 @@
-# Pixel-Centrix-Automata
+# Pixel-Centrix-Distributed-Automata
 
 基于梯度场的多机器人仓库导航仿真系统。机器人通过**吸引场**（爬升）和**代价场**（下降）自主导航，完成 Pod 拾取 → 工作站配送 → Pod 归还的全流程。
 
